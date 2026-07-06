@@ -1,0 +1,89 @@
+:root {
+	/* ===== Palet warna premium dark mode ===== */
+	--bg: #0f0f1a;
+	--surface: #1a1a2e;
+	--surface-2: #22223a;
+	--surface-3: #2b2b48;
+	--primary: #6c63ff;
+	--primary-soft: rgba(108, 99, 255, 0.15);
+	--primary-grad: linear-gradient(135deg, #6c63ff 0%, #9d7bff 100%);
+	--success: #4caf50;
+	--warning: #ff9800;
+	--danger: #f44336;
+	--info: #29b6f6;
+	--text: #ffffff;
+	--text-2: #a0a0b0;
+	--text-3: #6b6b80;
+	--border: rgba(255, 255, 255, 0.08);
+	--radius: 18px;
+	--radius-sm: 12px;
+
+	/* ===== Override token Ionic ===== */
+	--ion-background-color: var(--bg);
+	--ion-background-color-rgb: 15, 15, 26;
+	--ion-text-color: var(--text);
+	--ion-text-color-rgb: 255, 255, 255;
+	--ion-color-primary: #6c63ff;
+	--ion-color-primary-rgb: 108, 99, 255;
+	--ion-color-primary-contrast: #ffffff;
+	--ion-color-primary-shade: #5f57e0;
+	--ion-color-primary-tint: #7b73ff;
+	--ion-font-family: "Inter", -apple-system, BlinkMacSystemFont, sans-serif;
+	--ion-toolbar-background: var(--surface);
+	--ion-item-background: var(--surface);
+	--ion-card-background: var(--surface);
+	--ion-tab-bar-background: var(--surface);
+	--ion-tab-bar-color: var(--text-3);
+	--ion-tab-bar-color-selected: var(--primary);
+	/* Nonaktifkan safe-area Ionic agar tidak menambah padding ekstra di simulator */
+	--ion-safe-area-top: 0px;
+	--ion-safe-area-bottom: 0px;
+	--ion-safe-area-left: 0px;
+	--ion-safe-area-right: 0px;
+}
+
+* {
+	font-family: "Inter", -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+}
+
+h1, h2, h3, .title-font {
+	font-family: "Outfit", "Inter", sans-serif;
+	font-weight: 700;
+}
+
+/* ===== Utility ===== */
+.section-title {
+	font-family: "Outfit", sans-serif;
+	font-weight: 700;
+	font-size: 1.05rem;
+	margin: 4px 0 12px;
+	color: var(--text);
+}
+
+.muted { color: var(--text-2); }
+.text-center { text-align: center; }
+
+.card {
+	background: var(--surface);
+	border: 1px solid var(--border);
+	border-radius: var(--radius);
+	padding: 16px;
+}
+
+.badge {
+	display: inline-flex;
+	align-items: center;
+	gap: 4px;
+	padding: 3px 10px;
+	border-radius: 999px;
+	font-size: 0.72rem;
+	font-weight: 600;
+}
+.badge-present { background: rgba(76, 175, 80, 0.16); color: #7ee081; }
+.badge-late    { background: rgba(255, 152, 0, 0.16); color: #ffc164; }
+.badge-absent  { background: rgba(244, 67, 54, 0.16); color: #ff8078; }
+.badge-on_leave{ background: rgba(41, 182, 246, 0.16); color: #7fd4fb; }
+.badge-sick    { background: rgba(157, 123, 255, 0.16); color: #b6a1ff; }
+.badge-pending { background: rgba(255, 152, 0, 0.16); color: #ffc164; }
+.badge-approved{ background: rgba(76, 175, 80, 0.16); color: #7ee081; }
+.badge-rejected{ background: rgba(244, 67, 54, 0.16); color: #ff8078; }
