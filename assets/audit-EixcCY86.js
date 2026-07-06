@@ -1,1 +1,0 @@
-import{U as o}from"./index-Cnc91zf-.js";async function g(t,a,e,r,n){try{await o.from("audit_logs").insert({actor_id:t,action:a,target_table:e??null,target_id:r??null,metadata:{...n,user_agent:navigator.userAgent,client_time:new Date().toISOString()}})}catch(i){console.error("[HRAttend] Gagal mencatat audit log:",i)}}export{g as l};
