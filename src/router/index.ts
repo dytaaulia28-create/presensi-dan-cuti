@@ -43,30 +43,47 @@ const routes: Array<RouteRecordRaw> = [
 		component: () => import("@/views/admin/AdminTabs.vue"),
 		meta: { requiresAuth: true, role: "admin" },
 		children: [
-			{ path: "", redirect: "/admin/beranda" },
+			{ path: "", redirect: "/admin/akun" },
 			{
-				path: "beranda",
-				component: () => import("@/views/admin/AdminDashboard.vue"),
+				path: "akun",
+				component: () => import("@/views/admin/AdminAccountManagement.vue"),
 			},
 			{
-				path: "karyawan",
-				component: () => import("@/views/admin/EmployeeManagement.vue"),
+				path: "log",
+				component: () => import("@/views/admin/AdminActivityLog.vue"),
+			},
+			{
+				path: "profil",
+				component: () => import("@/views/admin/AdminProfile.vue"),
+			},
+		],
+	},
+	// ---- Area HRD ----
+	{
+		path: "/hrd/",
+		component: () => import("@/views/hrd/HrdTabs.vue"),
+		meta: { requiresAuth: true, role: "hrd" },
+		children: [
+			{ path: "", redirect: "/hrd/beranda" },
+			{
+				path: "beranda",
+				component: () => import("@/views/hrd/HrdDashboard.vue"),
 			},
 			{
 				path: "absensi",
-				component: () => import("@/views/admin/AttendanceMonitor.vue"),
+				component: () => import("@/views/hrd/HrdAttendance.vue"),
 			},
 			{
 				path: "cuti",
-				component: () => import("@/views/admin/LeaveApproval.vue"),
+				component: () => import("@/views/hrd/HrdLeave.vue"),
 			},
 			{
 				path: "laporan",
-				component: () => import("@/views/admin/ReportsPage.vue"),
+				component: () => import("@/views/hrd/HrdReports.vue"),
 			},
 			{
-				path: "pengaturan",
-				component: () => import("@/views/admin/SettingsPage.vue"),
+				path: "profil",
+				component: () => import("@/views/hrd/HrdProfile.vue"),
 			},
 		],
 	},
@@ -86,10 +103,14 @@ router.beforeEach((to) => {
 		return "/login"
 	}
 	if (to.path === "/login" && isLoggedIn) {
-		return profile?.role === "admin" ? "/admin/beranda" : "/app/beranda"
+		if (profile?.role === "admin") return "/admin/akun"
+		if (profile?.role === "hrd") return "/hrd/beranda"
+		return "/app/beranda"
 	}
 	if (to.meta.role && profile && to.meta.role !== profile.role) {
-		return profile.role === "admin" ? "/admin/beranda" : "/app/beranda"
+		if (profile.role === "admin") return "/admin/akun"
+		if (profile.role === "hrd") return "/hrd/beranda"
+		return "/app/beranda"
 	}
 	return true
 })
