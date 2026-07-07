@@ -33,11 +33,29 @@ export async function getTodayAttendance(
 	return (data as Attendance) ?? null
 }
 
-// Tentukan status berdasarkan jam server-side (patokan shift).
-function resolveStatus(shift: WorkShift, serverTime: string): AttendanceStatus | "closed" {
-	if (serverTime > shift.check_in_deadline) return "closed"
-	if (serverTime > shift.late_threshold) return "late"
-	return "present"
+// Tentukan status berdasarkan jam (dari jam 9 pagi - 10 pagi tepat waktu, selain itu terlambat).
+function resolveStatus(serverTime: string): AttendanceStatus {
+	if (serverTime >= "09:00:00" && serverTime <= "10:00:00") {
+		return "present"
+	}
+	return "late"
+}
+
+// Cek apakah ada absensi hari sebelumnya yang belum check-out.
+export async function checkUncompletedCheckOut(employeeId: string): Promise<boolean> {
+	const { data, error } = await supabase
+		.from("attendances")
+		.select("id")
+		.eq("employee_id", employeeId)
+		.lt("date", todayISO())
+		.not("check_in_time", "is", null)
+		.is("check_out_time", null)
+		.limit(1)
+	if (error) {
+		console.error("Error checking past attendances:", error)
+		return false
+	}
+	return (data && data.length > 0) ?? false
 }
 
 // Upload selfie ke Supabase Storage lalu kembalikan public URL.
@@ -65,26 +83,37 @@ async function getServerTime(): Promise<Date> {
 export async function performCheckIn(
 	employeeId: string,
 	selfie: Blob,
+	simulatedTime?: string, // Format "HH:mm:ss"
 ): Promise<CheckInResult> {
 	const shift = await getDefaultShift()
 	if (!shift) return { ok: false, message: "Shift kerja belum dikonfigurasi admin." }
 
-	// Validasi waktu (server-side lebih aman; fallback ke device jika RPC tak tersedia)
-	let serverTime: string
-	try {
-		const st = await getServerTime()
-		serverTime = st.toTimeString().slice(0, 8)
-	} catch {
-		serverTime = nowTimeString()
-	}
-
-	const status = resolveStatus(shift, serverTime)
-	if (status === "closed") {
+	// Cek lockout belum absen pulang hari sebelumnya
+	const hasLockout = await checkUncompletedCheckOut(employeeId)
+	if (hasLockout) {
 		return {
 			ok: false,
-			message: `Waktu absensi telah ditutup (batas ${shift.check_in_deadline}). Silakan hubungi HRD.`,
+			message: "Anda tidak bisa absen karena belum melakukan absen pulang pada hari sebelumnya. Silakan hubungi HRD.",
 		}
 	}
+
+	let timeToCheck: string
+	let checkInTimeIso: string
+	if (simulatedTime) {
+		timeToCheck = simulatedTime
+		checkInTimeIso = `${todayISO()}T${simulatedTime}`
+	} else {
+		let st: Date
+		try {
+			st = await getServerTime()
+		} catch {
+			st = new Date()
+		}
+		timeToCheck = st.toTimeString().slice(0, 8)
+		checkInTimeIso = st.toISOString()
+	}
+
+	const status = resolveStatus(timeToCheck)
 
 	const existing = await getTodayAttendance(employeeId)
 	if (existing?.check_in_time) {
@@ -92,13 +121,12 @@ export async function performCheckIn(
 	}
 
 	const photoUrl = await uploadSelfie(employeeId, selfie, "in")
-	const nowIso = new Date().toISOString()
 
 	const { error } = await supabase.from("attendances").upsert(
 		{
 			employee_id: employeeId,
 			date: todayISO(),
-			check_in_time: nowIso,
+			check_in_time: checkInTimeIso,
 			check_in_photo_url: photoUrl,
 			status,
 			shift_id: shift.id,
@@ -121,6 +149,7 @@ export async function performCheckIn(
 export async function performCheckOut(
 	employeeId: string,
 	selfie: Blob | null,
+	simulatedTime?: string, // Format "HH:mm:ss"
 ): Promise<CheckInResult> {
 	const existing = await getTodayAttendance(employeeId)
 	if (!existing?.check_in_time) {
@@ -130,13 +159,37 @@ export async function performCheckOut(
 		return { ok: false, message: "Anda sudah check-out hari ini." }
 	}
 
+	let timeToCheck: string
+	let checkOutTimeIso: string
+	if (simulatedTime) {
+		timeToCheck = simulatedTime
+		checkOutTimeIso = `${todayISO()}T${simulatedTime}`
+	} else {
+		let st: Date
+		try {
+			st = await getServerTime()
+		} catch {
+			st = new Date()
+		}
+		timeToCheck = st.toTimeString().slice(0, 8)
+		checkOutTimeIso = st.toISOString()
+	}
+
+	// Validasi jam pulang (harus pukul 17:00 - 18:00)
+	if (timeToCheck < "17:00:00") {
+		return { ok: false, message: "Belum bisa absen pulang." }
+	}
+	if (timeToCheck > "18:00:00") {
+		return { ok: false, message: "Batas waktu absen pulang (18:00) telah terlewat. Anda dianggap tidak absen pulang." }
+	}
+
 	let photoUrl: string | null = null
 	if (selfie) photoUrl = await uploadSelfie(employeeId, selfie, "out")
 
 	const { error } = await supabase
 		.from("attendances")
 		.update({
-			check_out_time: new Date().toISOString(),
+			check_out_time: checkOutTimeIso,
 			check_out_photo_url: photoUrl,
 		})
 		.eq("id", existing.id)
