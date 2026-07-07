@@ -1,6 +1,6 @@
 // Tipe data yang merepresentasikan skema database Supabase.
 
-export type UserRole = "employee" | "admin"
+export type UserRole = "employee" | "hrd" | "admin"
 export type Gender = "male" | "female"
 export type AttendanceStatus =
 	| "present"
