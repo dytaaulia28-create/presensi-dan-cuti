@@ -77,7 +77,13 @@ async function onSubmit() {
 		return
 	}
 	const role = authStore.state.profile?.role
-	router.replace(role === "admin" ? "/admin/beranda" : "/app/beranda")
+	if (role === "admin") {
+		router.replace("/admin/akun")
+	} else if (role === "hrd") {
+		router.replace("/hrd/beranda")
+	} else {
+		router.replace("/app/beranda")
+	}
 }
 </script>
 
