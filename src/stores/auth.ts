@@ -77,6 +77,14 @@ function isAdmin(): boolean {
 	return state.profile?.role === "admin"
 }
 
+function isHRD(): boolean {
+	return state.profile?.role === "hrd"
+}
+
+function isHRDOrAdmin(): boolean {
+	return state.profile?.role === "hrd" || state.profile?.role === "admin"
+}
+
 export const authStore = {
 	state: readonly(state),
 	init,
@@ -84,4 +92,6 @@ export const authStore = {
 	signOut,
 	fetchProfile,
 	isAdmin,
+	isHRD,
+	isHRDOrAdmin,
 }
