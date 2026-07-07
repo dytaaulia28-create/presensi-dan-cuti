@@ -16,7 +16,9 @@ create extension if not exists "pgcrypto";
 do $$
 begin
   if not exists (select 1 from pg_type where typname = 'user_role') then
-    create type user_role as enum ('employee', 'admin');
+    create type user_role as enum ('employee', 'hrd', 'admin');
+  else
+    alter type public.user_role add value if not exists 'hrd';
   end if;
   if not exists (select 1 from pg_type where typname = 'attendance_status') then
     create type attendance_status as enum ('present', 'late', 'absent', 'on_leave', 'sick');
@@ -161,6 +163,107 @@ as $$
   );
 $$;
 
+-- Cek apakah user yang sedang login adalah hrd atau admin (dipakai di policy RLS)
+create or replace function public.is_hrd_or_admin()
+returns boolean
+language sql
+security definer
+set search_path = public
+as $$
+  select exists (
+    select 1 from public.profiles
+    where id = auth.uid() and role in ('hrd', 'admin')
+  );
+$$;
+
+-- RPC: Admin membuat user baru
+create or replace function public.create_user_by_admin(
+  p_email text,
+  p_password text,
+  p_full_name text,
+  p_nik text,
+  p_gender public.gender_type,
+  p_role public.user_role,
+  p_division text
+)
+returns uuid
+language plpgsql
+security definer
+as $$
+declare
+  v_user_id uuid;
+begin
+  if not public.is_admin() then
+    raise exception 'Hanya admin yang dapat membuat akun baru.';
+  end if;
+
+  insert into auth.users (id, instance_id, email, encrypted_password, email_confirmed_at, aud, role, raw_app_meta_data, raw_user_meta_data, is_super_admin)
+  values (
+    gen_random_uuid(),
+    '00000000-0000-0000-0000-000000000000',
+    p_email,
+    crypt(p_password, gen_salt('bf')),
+    now(),
+    'authenticated',
+    'authenticated',
+    '{"provider":"email","providers":["email"]}',
+    json_build_object('full_name', p_full_name, 'nik', p_nik, 'gender', p_gender, 'role', p_role),
+    false
+  )
+  returning id into v_user_id;
+
+  insert into public.profiles (id, full_name, nik, gender, role, division)
+  values (v_user_id, p_full_name, p_nik, p_gender, p_role, p_division)
+  on conflict (id) do update
+  set division = p_division;
+
+  return v_user_id;
+end;
+$$;
+
+-- RPC: Admin menghapus user
+create or replace function public.delete_user_by_admin(p_user_id uuid)
+returns boolean
+language plpgsql
+security definer
+as $$
+begin
+  if not public.is_admin() then
+    raise exception 'Hanya admin yang dapat menghapus akun.';
+  end if;
+
+  delete from auth.users where id = p_user_id;
+  return true;
+end;
+$$;
+
+-- Otomatis alokasikan saldo cuti & set joined_at ke 1 tahun lalu
+create or replace function public.initialize_leave_balances()
+returns trigger
+language plpgsql
+security definer
+set search_path = public
+as $$
+begin
+  if new.role = 'employee' then
+    if new.joined_at = current_date then
+      new.joined_at := current_date - interval '1 year';
+    end if;
+    
+    insert into public.leave_balances (employee_id, leave_type_id, year, total_days)
+    select new.id, id, extract(year from current_date), coalesce(quota_days, 0)
+    from public.leave_types
+    on conflict do nothing;
+  end if;
+  return new;
+end;
+$$;
+
+drop trigger if exists on_profile_created on public.profiles;
+create trigger on_profile_created
+  before insert on public.profiles
+  for each row execute function public.initialize_leave_balances();
+
 -- Buat profile otomatis saat user baru mendaftar via Supabase Auth
 create or replace function public.handle_new_user()
 returns trigger
@@ -246,7 +349,7 @@ alter table public.audit_logs     enable row level security;
 -- ---- profiles ----
 drop policy if exists "profiles_select_self_or_admin" on public.profiles;
 create policy "profiles_select_self_or_admin" on public.profiles
-  for select using (id = auth.uid() or public.is_admin());
+  for select using (id = auth.uid() or public.is_hrd_or_admin());
 
 drop policy if exists "profiles_update_self_or_admin" on public.profiles;
 create policy "profiles_update_self_or_admin" on public.profiles
@@ -268,15 +371,15 @@ create policy "shifts_write_admin" on public.work_shifts
 -- ---- attendances ----
 drop policy if exists "att_select_self_or_admin" on public.attendances;
 create policy "att_select_self_or_admin" on public.attendances
-  for select using (employee_id = auth.uid() or public.is_admin());
+  for select using (employee_id = auth.uid() or public.is_hrd_or_admin());
 
 drop policy if exists "att_insert_self" on public.attendances;
 create policy "att_insert_self" on public.attendances
-  for insert with check (employee_id = auth.uid() or public.is_admin());
+  for insert with check (employee_id = auth.uid() or public.is_hrd_or_admin());
 
 drop policy if exists "att_update_self_or_admin" on public.attendances;
 create policy "att_update_self_or_admin" on public.attendances
-  for update using (employee_id = auth.uid() or public.is_admin());
+  for update using (employee_id = auth.uid() or public.is_hrd_or_admin());
 
 -- ---- leave_types ----
 drop policy if exists "ltypes_select_all" on public.leave_types;
@@ -290,16 +393,16 @@ create policy "ltypes_write_admin" on public.leave_types
 -- ---- leave_balances ----
 drop policy if exists "lbal_select_self_or_admin" on public.leave_balances;
 create policy "lbal_select_self_or_admin" on public.leave_balances
-  for select using (employee_id = auth.uid() or public.is_admin());
+  for select using (employee_id = auth.uid() or public.is_hrd_or_admin());
 
 drop policy if exists "lbal_write_admin" on public.leave_balances;
 create policy "lbal_write_admin" on public.leave_balances
-  for all using (public.is_admin()) with check (public.is_admin());
+  for all using (public.is_hrd_or_admin()) with check (public.is_hrd_or_admin());
 
 -- ---- leave_requests ----
 drop policy if exists "lreq_select_self_or_admin" on public.leave_requests;
 create policy "lreq_select_self_or_admin" on public.leave_requests
-  for select using (employee_id = auth.uid() or public.is_admin());
+  for select using (employee_id = auth.uid() or public.is_hrd_or_admin());
 
 drop policy if exists "lreq_insert_self" on public.leave_requests;
 create policy "lreq_insert_self" on public.leave_requests
@@ -307,12 +410,12 @@ create policy "lreq_insert_self" on public.leave_requests
 
 drop policy if exists "lreq_update_admin" on public.leave_requests;
 create policy "lreq_update_admin" on public.leave_requests
-  for update using (public.is_admin()) with check (public.is_admin());
+  for update using (public.is_hrd_or_admin()) with check (public.is_hrd_or_admin());
 
 -- ---- audit_logs ----
 drop policy if exists "audit_select_admin" on public.audit_logs;
 create policy "audit_select_admin" on public.audit_logs
-  for select using (public.is_admin());
+  for select using (public.is_hrd_or_admin());
 
 drop policy if exists "audit_insert_auth" on public.audit_logs;
 create policy "audit_insert_auth" on public.audit_logs
