@@ -80,6 +80,36 @@ export async function updateEmployee(id: string, patch: Partial<Profile>): Promi
 	await supabase.from("profiles").update(patch).eq("id", id)
 }
 
+export async function createEmployee(input: {
+	email: string
+	password: string
+	full_name: string
+	nik: string
+	gender: "male" | "female"
+	role: "employee" | "hrd" | "admin"
+	division: string
+}): Promise<{ ok: boolean; message: string }> {
+	const { data, error } = await supabase.rpc("create_user_by_admin", {
+		p_email: input.email,
+		p_password: input.password,
+		p_full_name: input.full_name,
+		p_nik: input.nik,
+		p_gender: input.gender,
+		p_role: input.role,
+		p_division: input.division,
+	})
+	if (error) return { ok: false, message: error.message }
+	return { ok: true, message: "Akun berhasil dibuat." }
+}
+
+export async function deleteEmployee(id: string): Promise<{ ok: boolean; message: string }> {
+	const { data, error } = await supabase.rpc("delete_user_by_admin", {
+		p_user_id: id,
+	})
+	if (error) return { ok: false, message: error.message }
+	return { ok: true, message: "Akun berhasil dihapus." }
+}
+
 export async function getAttendanceByDate(date: string): Promise<Attendance[]> {
 	const { data } = await supabase
 		.from("attendances")
