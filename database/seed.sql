@@ -73,7 +73,7 @@ begin
     'authenticated',
     'authenticated',
     '{"provider":"email","providers":["email"]}',
-    '{"full_name":"Mimi","nik":"H0001","gender":"female","role":"admin"}',
+    '{"full_name":"Mimi","nik":"H0001","gender":"female","role":"hrd"}',
     false,
     now(),
     now(),
@@ -99,16 +99,17 @@ begin
   );
 
   -- D. Hubungkan dan pastikan profiles terbuat dengan data yang tepat (jika trigger belum/tidak jalan)
-  insert into public.profiles (id, full_name, nik, gender, role)
+  insert into public.profiles (id, full_name, nik, gender, role, joined_at)
   values 
-    (v_dudul_id, 'Dudul', 'K0001', 'male', 'employee'),
-    (v_mimi_id, 'Mimi', 'H0001', 'female', 'admin'),
-    (v_sumbul_id, 'Sumbul', 'A0001', 'male', 'admin')
+    (v_dudul_id, 'Dudul', 'K0001', 'male', 'employee', current_date - interval '1 year'),
+    (v_mimi_id, 'Mimi', 'H0001', 'female', 'hrd', current_date),
+    (v_sumbul_id, 'Sumbul', 'A0001', 'male', 'admin', current_date)
   on conflict (id) do update set
     full_name = excluded.full_name,
     nik = excluded.nik,
     gender = excluded.gender,
-    role = excluded.role;
+    role = excluded.role,
+    joined_at = excluded.joined_at;
 
   -- E. Alokasikan saldo cuti tahunan awal untuk Dudul (Karyawan)
   insert into public.leave_balances (employee_id, leave_type_id, year, total_days)
